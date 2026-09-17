@@ -19,7 +19,7 @@
     "@actions/exec": "^3.0.0"
   },
   "devDependencies": {
-    "@types/node": "25.9.1",
+    "@types/node": "26.6.1",
     "rolldown": "^1.2.8",
     "typescript": "^7.0.2"
   }
