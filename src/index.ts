@@ -35,6 +35,14 @@ function findTestDirs(dir: string, excludes: string[], fileList: string[] = []):
     return fileList;
 }
 
+function escapeRegExp(str: string): string {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function buildFocusRegex(benchName: string): string {
+    return `(\\.|/|^)${escapeRegExp(benchName)}(\\.|\\$|/|:)`;
+}
+
 async function run(): Promise<void> {
     try {
         const top = core.getInput('top');
@@ -111,6 +119,8 @@ async function run(): Promise<void> {
         core.summary.addRaw('# 🏎️ go-bench-pprof-action 性能分析报告\n\n');
         core.summary.addRaw(`> 💡 过滤规则: \`${match}\` | 展现深度: Top ${top}\n\n`);
 
+        const pprofBaseArgs = ['tool', 'pprof', '-text', '-relative_percentages', `-nodecount=${top}`];
+
         for (const [pkg, item] of Object.entries(packageResults)) {
             core.summary.addRaw(`## 📦 组件包: ${pkg}\n\n`);
 
@@ -140,28 +150,31 @@ async function run(): Promise<void> {
 
                 for (const bench of benches) {
                     core.summary.addRaw(`#### 📌 函数场景: \`${bench}\`\n\n`);
+                    const focusRegex = buildFocusRegex(bench);
 
                     if (fs.existsSync(item.cpuProf)) {
                         let cpuText = '';
-                        await exec.exec('go', ['tool', 'pprof', '-text', `-nodecount=${top}`, `-focus=${bench}`, item.cpuProf], {
+                        await exec.exec('go', [...pprofBaseArgs, `-focus=${focusRegex}`, item.cpuProf], {
                             listeners: { stdout: (data: Buffer) => { cpuText += data.toString(); } },
                             silent: true
                         });
-                        if (cpuText.includes(bench) || cpuText.split('\n').length > 5) {
+                        const trimmed = cpuText.trim();
+                        if (trimmed && !trimmed.includes('No nodes to print') && !trimmed.includes('Showing nodes accounting for 0s') && !trimmed.includes('Showing nodes accounting for 0,')) {
                             core.summary.addRaw(`##### 🧠 CPU 耗时 Top 排行\n\n`);
-                            core.summary.addRaw(`\`\`\`text\n${cpuText.trim()}\n\`\`\`\n\n`);
+                            core.summary.addRaw(`\`\`\`text\n${trimmed}\n\`\`\`\n\n`);
                         }
                     }
 
                     if (mem && fs.existsSync(item.memProf)) {
                         let memText = '';
-                        await exec.exec('go', ['tool', 'pprof', '-text', `-nodecount=${top}`, '-alloc_space', `-focus=${bench}`, item.memProf], {
+                        await exec.exec('go', [...pprofBaseArgs, '-alloc_space', `-focus=${focusRegex}`, item.memProf], {
                             listeners: { stdout: (data: Buffer) => { memText += data.toString(); } },
                             silent: true
                         });
-                        if (memText.includes(bench) || memText.split('\n').length > 5) {
+                        const trimmed = memText.trim();
+                        if (trimmed && !trimmed.includes('No nodes to print') && !trimmed.includes('Showing nodes accounting for 0B') && !trimmed.includes('Showing nodes accounting for 0,')) {
                             core.summary.addRaw(`##### 💾 内存空间占用 Top 排行\n\n`);
-                            core.summary.addRaw(`\`\`\`text\n${memText.trim()}\n\`\`\`\n\n`);
+                            core.summary.addRaw(`\`\`\`text\n${trimmed}\n\`\`\`\n\n`);
                         }
                     }
                 }

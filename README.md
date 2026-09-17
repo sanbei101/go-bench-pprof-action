@@ -12,10 +12,10 @@
 
 ## 输入
 
-```
+```yaml
 top: 10 # pprof排序输出前K个
 match: 正则表达式 # 只分析函数名匹配正则表达式的函数
-mem: bool # 是否分析内存
+mem: true # 是否分析内存
 exclude: # 排除的路径
 ```
 
